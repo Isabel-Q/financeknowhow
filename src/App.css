@@ -1092,6 +1092,125 @@ button {
   background: rgba(255, 255, 255, 0.44);
 }
 
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: var(--space-4);
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.settings-card-primary {
+  background:
+    radial-gradient(circle at right top, rgba(10, 103, 255, 0.12), transparent 38%),
+    rgba(255, 255, 255, 0.72);
+}
+
+.settings-prompt-card {
+  grid-column: 1 / -1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 253, 0.74)),
+    rgba(255, 255, 255, 0.78);
+}
+
+.settings-guide-card {
+  grid-column: 1 / -1;
+}
+
+.settings-card h4 {
+  margin: 10px 0 8px;
+  font-size: 1.16rem;
+  letter-spacing: -0.03em;
+}
+
+.settings-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.settings-field {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-field span,
+.prompt-toolbar span,
+.ai-settings-summary span {
+  color: var(--subtle);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-field input,
+.settings-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    background-color var(--transition);
+}
+
+.settings-field input {
+  min-height: 48px;
+  padding: 0 14px;
+}
+
+.settings-field textarea {
+  min-height: 220px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.settings-field input:focus,
+.settings-field textarea:focus {
+  border-color: rgba(10, 103, 255, 0.26);
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(10, 103, 255, 0.08);
+  background: #fff;
+}
+
+.settings-actions,
+.prompt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.settings-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(194, 65, 12, 0.08);
+  color: #9a3412;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.settings-status.is-ready {
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+}
+
 .ai-floating-button {
   position: fixed;
   right: 28px;
@@ -1131,7 +1250,7 @@ button {
 }
 
 .ai-panel-head,
-.ai-settings-toggle {
+.ai-settings {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1163,9 +1282,7 @@ button {
 }
 
 .ai-context-card span,
-.ai-message span,
-.ai-settings-toggle span,
-.ai-settings-body span {
+.ai-message span {
   color: var(--subtle);
   font-size: 0.78rem;
   font-weight: 800;
@@ -1180,38 +1297,23 @@ button {
 }
 
 .ai-context-card p,
-.ai-settings-body small {
+.ai-settings-summary small {
   margin: 8px 0 0;
   color: var(--muted);
   line-height: 1.6;
 }
 
-.ai-settings-toggle {
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  text-align: left;
+.ai-settings-summary {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
-.ai-settings-toggle strong {
+.ai-settings-summary strong {
   color: var(--accent);
   font-size: 0.9rem;
 }
 
-.ai-settings-body {
-  display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.ai-settings-body label {
-  display: grid;
-  gap: 8px;
-}
-
-.ai-settings-body input,
 .ai-input-row textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -1220,12 +1322,6 @@ button {
   color: var(--ink);
 }
 
-.ai-settings-body input {
-  min-height: 44px;
-  padding: 0 14px;
-}
-
-.ai-settings-body input:focus,
 .ai-input-row textarea:focus {
   border-color: rgba(10, 103, 255, 0.26);
   outline: none;
@@ -1343,7 +1439,8 @@ button {
 
 @media (max-width: 1160px) {
   .app-shell,
-  .encyclopedia-layout {
+  .encyclopedia-layout,
+  .settings-layout {
     grid-template-columns: 1fr;
   }
 

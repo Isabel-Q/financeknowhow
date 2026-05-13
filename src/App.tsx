@@ -26,7 +26,8 @@ type TabId =
   | "tax-planning"
   | "invoices"
   | "calendar"
-  | "glossary";
+  | "glossary"
+  | "settings";
 
 type SearchSuggestion = {
   id: string;
@@ -58,6 +59,7 @@ const navItems: Array<{ id: TabId; order: string; label: string; detail: string 
   { id: "invoices", order: "05", label: "发票与税率", detail: "理解票据、税率与抵扣" },
   { id: "calendar", order: "06", label: "经营日历", detail: "掌握合规与申报节奏" },
   { id: "glossary", order: "07", label: "术语表", detail: "把财务语言翻成人话" },
+  { id: "settings", order: "08", label: "设置", detail: "配置 AI API Key 与提示词" },
 ];
 
 const regionOptions: Array<Extract<Region, "全部" | "中国" | "新加坡">> = ["全部", "中国", "新加坡"];
@@ -181,9 +183,9 @@ function App() {
   const [selectedPlanId, setSelectedPlanId] = useState(taxPlanningPlays[0]?.id ?? "");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceGuides[0]?.id ?? "");
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
-  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("gpt-5.5");
+  const [aiGlobalPrompt, setAiGlobalPrompt] = useState("");
   const [aiInput, setAiInput] = useState("");
   const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -429,6 +431,7 @@ function App() {
   useEffect(() => {
     const storedKey = window.localStorage.getItem("financeknowhow.openaiApiKey");
     const storedModel = window.localStorage.getItem("financeknowhow.openaiModel");
+    const storedGlobalPrompt = window.localStorage.getItem("financeknowhow.aiGlobalPrompt");
 
     if (storedKey) {
       setAiApiKey(storedKey);
@@ -436,6 +439,10 @@ function App() {
 
     if (storedModel) {
       setAiModel(storedModel);
+    }
+
+    if (storedGlobalPrompt) {
+      setAiGlobalPrompt(storedGlobalPrompt);
     }
   }, []);
 
@@ -450,6 +457,14 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem("financeknowhow.openaiModel", aiModel);
   }, [aiModel]);
+
+  useEffect(() => {
+    if (aiGlobalPrompt.trim()) {
+      window.localStorage.setItem("financeknowhow.aiGlobalPrompt", aiGlobalPrompt);
+    } else {
+      window.localStorage.removeItem("financeknowhow.aiGlobalPrompt");
+    }
+  }, [aiGlobalPrompt]);
 
   async function handleOpenExternal(url: string) {
     try {
@@ -572,7 +587,7 @@ function App() {
     }
 
     if (!aiApiKey.trim()) {
-      setIsAiSettingsOpen(true);
+      startTransition(() => setActiveTab("settings"));
       setAiError("请先在设置里填写 OpenAI API Key。");
       return;
     }
@@ -588,9 +603,12 @@ function App() {
       "回答要专业、准确、克制，聚焦中国和新加坡的经营财务、税务、发票和合规问题。",
       "优先解释概念、判断逻辑、风险边界和 CEO 应该追问的问题。",
       "不要编造政策细节；如果需要正式结论，提醒用户以官方来源和专业顾问意见为准。",
+      aiGlobalPrompt.trim() ? `用户全局提示词：\n${aiGlobalPrompt.trim()}` : "",
       `当前阅读位置：${activeReadingContext.label} / ${activeReadingContext.title}`,
       `当前内容上下文：\n${activeReadingContext.body}`,
-    ].join("\n\n");
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     setAiMessages(nextMessages);
     setAiInput("");
@@ -627,10 +645,6 @@ function App() {
 
   function openAiPanel() {
     setIsAiPanelOpen(true);
-
-    if (!aiApiKey.trim()) {
-      setIsAiSettingsOpen(true);
-    }
   }
 
   return (
@@ -1698,6 +1712,110 @@ function App() {
               </section>
             </section>
           ) : null}
+
+          {activeTab === "settings" ? (
+            <section className="page-grid">
+              <section className="section-block card-panel settings-page">
+                <div className="section-header">
+                  <div>
+                    <p className="eyebrow">AI settings</p>
+                    <h3>使用你自己的 OpenAI API Key，并定义 AI 的全局回答方式</h3>
+                  </div>
+                </div>
+
+                <div className="settings-layout">
+                  <article className="settings-card settings-card-primary">
+                    <div>
+                      <p className="eyebrow">API Key</p>
+                      <h4>用户自有密钥</h4>
+                      <p>
+                        AI 对话会通过你填写的 API Key 调用 OpenAI。密钥只保存在本机 localStorage，
+                        不会写入项目代码或提交到 Git。
+                      </p>
+                    </div>
+
+                    <label className="settings-field">
+                      <span>OpenAI API Key</span>
+                      <input
+                        type="password"
+                        placeholder="sk-..."
+                        value={aiApiKey}
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(event) => setAiApiKey(event.currentTarget.value)}
+                      />
+                    </label>
+
+                    <div className="settings-actions">
+                      <span className={`settings-status ${aiApiKey.trim() ? "is-ready" : ""}`}>
+                        {aiApiKey.trim() ? "API Key 已配置" : "尚未配置 API Key"}
+                      </span>
+                      <button type="button" className="quiet-link" onClick={() => setAiApiKey("")}>
+                        移除密钥
+                      </button>
+                    </div>
+                  </article>
+
+                  <article className="settings-card">
+                    <div>
+                      <p className="eyebrow">Model</p>
+                      <h4>模型</h4>
+                      <p>默认使用 gpt-5.5；如果你的账号需要使用其他可用模型，可以在这里覆盖。</p>
+                    </div>
+
+                    <label className="settings-field">
+                      <span>模型名称</span>
+                      <input
+                        type="text"
+                        value={aiModel}
+                        spellCheck={false}
+                        onChange={(event) => setAiModel(event.currentTarget.value)}
+                      />
+                    </label>
+                  </article>
+
+                  <article className="settings-card settings-prompt-card">
+                    <div>
+                      <p className="eyebrow">Global prompt</p>
+                      <h4>全局提示词</h4>
+                      <p>
+                        这段提示词会附加到每一次 AI 对话中，用于定义你的公司背景、回答风格、输出格式、
+                        风险偏好或地区关注重点。
+                      </p>
+                    </div>
+
+                    <label className="settings-field">
+                      <span>每次对话都会生效</span>
+                      <textarea
+                        value={aiGlobalPrompt}
+                        placeholder="例如：回答时先给结论，再列风险边界；所有税务问题请区分中国和新加坡；不要给出未经确认的政策细节；如果涉及发票、税率或申报期限，请提示我核对官方来源。"
+                        rows={8}
+                        onChange={(event) => setAiGlobalPrompt(event.currentTarget.value)}
+                      />
+                    </label>
+
+                    <div className="prompt-toolbar">
+                      <span>{aiGlobalPrompt.trim().length} 字</span>
+                      <button type="button" className="quiet-link" onClick={() => setAiGlobalPrompt("")}>
+                        清空提示词
+                      </button>
+                    </div>
+                  </article>
+
+                  <article className="settings-card settings-guide-card">
+                    <p className="eyebrow">建议写法</p>
+                    <h4>让全局提示词更稳定</h4>
+                    <ul className="detail-list compact-list">
+                      <li>写清公司背景：行业、地区、规模、是否有跨境业务。</li>
+                      <li>写清输出偏好：先结论、再逻辑、最后风险和待核对事项。</li>
+                      <li>写清边界：不确定的政策必须提示核对官方来源，不替代持牌顾问意见。</li>
+                      <li>不要把 API Key、客户隐私、身份证件、银行账户等敏感信息写进提示词。</li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+            </section>
+          ) : null}
         </div>
       </main>
 
@@ -1729,37 +1847,25 @@ function App() {
           </section>
 
           <section className="ai-settings">
+            <div className="ai-settings-summary">
+              <span>AI 配置</span>
+              <strong>{aiApiKey.trim() ? "API Key 已配置" : "需要 API Key"}</strong>
+              <small>
+                {aiGlobalPrompt.trim()
+                  ? "全局提示词会随每次提问一起发送。"
+                  : "可在设置页添加全局提示词，让 AI 按你的公司背景和回答格式工作。"}
+              </small>
+            </div>
             <button
               type="button"
-              className="ai-settings-toggle"
-              onClick={() => setIsAiSettingsOpen((isOpen) => !isOpen)}
+              className="quiet-link"
+              onClick={() => {
+                setIsAiPanelOpen(false);
+                startTransition(() => setActiveTab("settings"));
+              }}
             >
-              <span>设置</span>
-              <strong>{aiApiKey.trim() ? "API Key 已配置" : "需要 API Key"}</strong>
+              打开 AI 设置
             </button>
-
-            {isAiSettingsOpen ? (
-              <div className="ai-settings-body">
-                <label>
-                  <span>OpenAI API Key</span>
-                  <input
-                    type="password"
-                    placeholder="sk-..."
-                    value={aiApiKey}
-                    onChange={(event) => setAiApiKey(event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  <span>模型</span>
-                  <input
-                    type="text"
-                    value={aiModel}
-                    onChange={(event) => setAiModel(event.currentTarget.value)}
-                  />
-                </label>
-                <small>API Key 仅保存在本机应用存储中，不会写入项目代码或提交到 Git。</small>
-              </div>
-            ) : null}
           </section>
 
           <div className="ai-message-list" role="log" aria-live="polite">
