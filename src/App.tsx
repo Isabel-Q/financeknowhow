@@ -26,8 +26,7 @@ type TabId =
   | "tax-planning"
   | "invoices"
   | "calendar"
-  | "glossary"
-  | "settings";
+  | "glossary";
 
 type SearchSuggestion = {
   id: string;
@@ -59,7 +58,6 @@ const navItems: Array<{ id: TabId; order: string; label: string; detail: string 
   { id: "invoices", order: "05", label: "发票与税率", detail: "理解票据、税率与抵扣" },
   { id: "calendar", order: "06", label: "经营日历", detail: "掌握合规与申报节奏" },
   { id: "glossary", order: "07", label: "术语表", detail: "把财务语言翻成人话" },
-  { id: "settings", order: "08", label: "设置", detail: "配置你的 AI API Key" },
 ];
 
 const regionOptions: Array<Extract<Region, "全部" | "中国" | "新加坡">> = ["全部", "中国", "新加坡"];
@@ -183,14 +181,13 @@ function App() {
   const [selectedPlanId, setSelectedPlanId] = useState(taxPlanningPlays[0]?.id ?? "");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceGuides[0]?.id ?? "");
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("gpt-5.5");
-  const [aiReplyLanguage, setAiReplyLanguage] = useState("中文");
   const [aiInput, setAiInput] = useState("");
   const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
-  const [aiSettingsStatus, setAiSettingsStatus] = useState("");
 
   const deferredSearch = useDeferredValue(normalizeSearchText(searchText));
 
@@ -432,7 +429,6 @@ function App() {
   useEffect(() => {
     const storedKey = window.localStorage.getItem("financeknowhow.openaiApiKey");
     const storedModel = window.localStorage.getItem("financeknowhow.openaiModel");
-    const storedLanguage = window.localStorage.getItem("financeknowhow.aiReplyLanguage");
 
     if (storedKey) {
       setAiApiKey(storedKey);
@@ -440,10 +436,6 @@ function App() {
 
     if (storedModel) {
       setAiModel(storedModel);
-    }
-
-    if (storedLanguage) {
-      setAiReplyLanguage(storedLanguage);
     }
   }, []);
 
@@ -458,10 +450,6 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem("financeknowhow.openaiModel", aiModel);
   }, [aiModel]);
-
-  useEffect(() => {
-    window.localStorage.setItem("financeknowhow.aiReplyLanguage", aiReplyLanguage);
-  }, [aiReplyLanguage]);
 
   async function handleOpenExternal(url: string) {
     try {
@@ -584,8 +572,8 @@ function App() {
     }
 
     if (!aiApiKey.trim()) {
+      setIsAiSettingsOpen(true);
       setAiError("请先在设置里填写 OpenAI API Key。");
-      startTransition(() => setActiveTab("settings"));
       return;
     }
 
@@ -598,7 +586,6 @@ function App() {
     const systemPrompt = [
       "你是 FinanceKnowHow 的财务学习助手，面向没有财务背景的 CEO。",
       "回答要专业、准确、克制，聚焦中国和新加坡的经营财务、税务、发票和合规问题。",
-      `默认回复语言：${aiReplyLanguage}。`,
       "优先解释概念、判断逻辑、风险边界和 CEO 应该追问的问题。",
       "不要编造政策细节；如果需要正式结论，提醒用户以官方来源和专业顾问意见为准。",
       `当前阅读位置：${activeReadingContext.label} / ${activeReadingContext.title}`,
@@ -642,17 +629,8 @@ function App() {
     setIsAiPanelOpen(true);
 
     if (!aiApiKey.trim()) {
-      startTransition(() => setActiveTab("settings"));
+      setIsAiSettingsOpen(true);
     }
-  }
-
-  function clearAiApiKey() {
-    setAiApiKey("");
-    setAiSettingsStatus("API Key 已从本机移除。");
-  }
-
-  function confirmAiSettingsSaved() {
-    setAiSettingsStatus(aiApiKey.trim() ? "AI 配置已保存在本机。" : "请填写 API Key 后再使用 AI 对话。");
   }
 
   return (
@@ -720,11 +698,40 @@ function App() {
           </div>
         </section>
 
+        <section className="sidebar-note card-panel">
+          <p className="eyebrow">产品原则</p>
+          <ul className="detail-list compact-list">
+            <li>先教认知框架，再给地区规则，最后才是条文和表单。</li>
+            <li>让小白可以按路径系统学习，而不是只会碎片查询。</li>
+            <li>高风险主题保留官方来源入口，方便继续核对原文。</li>
+            <li>税务筹划只覆盖合法合规安排，明确风险边界，不提供逃税做法。</li>
+          </ul>
+        </section>
       </aside>
 
       <main className="workspace">
         <header className="topbar glass-surface">
+          <div className="topbar-copy">
+            <p className="eyebrow">Last verified</p>
+            <strong>{lastVerifiedAt}</strong>
+          </div>
+
           <div className="topbar-controls">
+            <div className="segmented-group" aria-label="地区筛选">
+              {regionOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`segmented-pill ${selectedRegion === option ? "is-active" : ""}`}
+                  onClick={() => {
+                    startTransition(() => setSelectedRegion(option));
+                  }}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
             <div className="search-box">
               <label className="sr-only" htmlFor="global-search">
                 搜索百科、术语与学习内容
@@ -777,23 +784,6 @@ function App() {
                 </div>
               ) : null}
             </div>
-
-            <div className="segmented-group" aria-label="地区筛选">
-              {regionOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`segmented-pill ${selectedRegion === option ? "is-active" : ""}`}
-                  onClick={() => {
-                    startTransition(() => setSelectedRegion(option));
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-
-            <span className="verified-pill">已校验 {lastVerifiedAt}</span>
 
             <button type="button" className="ai-topbar-button" onClick={openAiPanel}>
               AI 提问
@@ -1708,94 +1698,6 @@ function App() {
               </section>
             </section>
           ) : null}
-
-          {activeTab === "settings" ? (
-            <section className="page-grid">
-              <section className="settings-shell card-panel">
-                <div className="settings-hero">
-                  <div>
-                    <p className="eyebrow">Settings</p>
-                    <h3>AI 配置</h3>
-                    <p>
-                      每个用户使用自己的 OpenAI API Key 调用内置 AI 助手。Key 只保存在当前设备，
-                      用于随读随问、解释财务概念和追问风险边界。
-                    </p>
-                  </div>
-                  <div className={`settings-status ${aiApiKey.trim() ? "is-ready" : ""}`}>
-                    <span>{aiApiKey.trim() ? "Ready" : "Required"}</span>
-                    <strong>{aiApiKey.trim() ? "API Key 已配置" : "等待配置 API Key"}</strong>
-                  </div>
-                </div>
-
-                <div className="settings-grid">
-                  <article className="settings-card">
-                    <p className="eyebrow">OpenAI API Key</p>
-                    <h4>连接你自己的 OpenAI 账户</h4>
-                    <p>这个应用不会内置公共 Key。配置后，AI 对话产生的调用由你的 OpenAI 账户处理。</p>
-                    <label className="settings-field">
-                      <span>API Key</span>
-                      <input
-                        type="password"
-                        placeholder="sk-..."
-                        value={aiApiKey}
-                        onChange={(event) => {
-                          setAiApiKey(event.currentTarget.value);
-                          setAiSettingsStatus("");
-                        }}
-                      />
-                    </label>
-                    <div className="settings-actions">
-                      <button type="button" className="primary-action" onClick={confirmAiSettingsSaved}>
-                        保存设置
-                      </button>
-                      <button type="button" className="secondary-action" onClick={clearAiApiKey}>
-                        移除 Key
-                      </button>
-                    </div>
-                    <small>当前实现使用本机 localStorage 保存。生产发布前建议升级为系统 Keychain / 钥匙串。</small>
-                  </article>
-
-                  <article className="settings-card">
-                    <p className="eyebrow">Model</p>
-                    <h4>模型与回复语言</h4>
-                    <p>
-                      默认使用 <code>gpt-5.5</code>。如果你的账户使用不同模型名称，可以在这里改成可用模型。
-                    </p>
-                    <label className="settings-field">
-                      <span>模型名称</span>
-                      <input
-                        type="text"
-                        value={aiModel}
-                        onChange={(event) => {
-                          setAiModel(event.currentTarget.value);
-                          setAiSettingsStatus("");
-                        }}
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span>默认回复语言</span>
-                      <select
-                        value={aiReplyLanguage}
-                        onChange={(event) => {
-                          setAiReplyLanguage(event.currentTarget.value);
-                          setAiSettingsStatus("");
-                        }}
-                      >
-                        <option value="中文">中文</option>
-                        <option value="English">English</option>
-                        <option value="跟随用户提问语言">跟随用户提问语言</option>
-                      </select>
-                    </label>
-                  </article>
-                </div>
-
-                <div className="settings-note">
-                  <strong>{aiSettingsStatus || "AI 助手会在回答时自动带入当前阅读内容。"}</strong>
-                  <p>建议提问方式：解释这段内容、列出风险边界、比较中国和新加坡差异、把专业术语翻译成 CEO 能理解的话。</p>
-                </div>
-              </section>
-            </section>
-          ) : null}
         </div>
       </main>
 
@@ -1830,17 +1732,34 @@ function App() {
             <button
               type="button"
               className="ai-settings-toggle"
-              onClick={() => {
-                startTransition(() => setActiveTab("settings"));
-                setIsAiPanelOpen(false);
-              }}
+              onClick={() => setIsAiSettingsOpen((isOpen) => !isOpen)}
             >
-              <span>AI 设置</span>
+              <span>设置</span>
               <strong>{aiApiKey.trim() ? "API Key 已配置" : "需要 API Key"}</strong>
             </button>
-            <p className="ai-settings-summary">
-              {aiApiKey.trim() ? `当前模型：${aiModel}` : "请进入设置页填写你自己的 OpenAI API Key。"}
-            </p>
+
+            {isAiSettingsOpen ? (
+              <div className="ai-settings-body">
+                <label>
+                  <span>OpenAI API Key</span>
+                  <input
+                    type="password"
+                    placeholder="sk-..."
+                    value={aiApiKey}
+                    onChange={(event) => setAiApiKey(event.currentTarget.value)}
+                  />
+                </label>
+                <label>
+                  <span>模型</span>
+                  <input
+                    type="text"
+                    value={aiModel}
+                    onChange={(event) => setAiModel(event.currentTarget.value)}
+                  />
+                </label>
+                <small>API Key 仅保存在本机应用存储中，不会写入项目代码或提交到 Git。</small>
+              </div>
+            ) : null}
           </section>
 
           <div className="ai-message-list" role="log" aria-live="polite">
