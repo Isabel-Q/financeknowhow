@@ -237,7 +237,6 @@ button {
 .topic-card p,
 .entry-card p,
 .calendar-card p,
-.glossary-card p,
 .empty-state p,
 .source-card small,
 .source-card em,
@@ -551,7 +550,6 @@ button {
 .entry-card p,
 .topic-card p,
 .calendar-card p,
-.glossary-card p,
 .guide-summary,
 .guide-step p,
 .empty-state p {
@@ -624,7 +622,6 @@ button {
 .source-grid,
 .rate-grid,
 .calendar-grid,
-.glossary-grid,
 .detail-grid {
   display: grid;
   gap: var(--space-4);
@@ -646,7 +643,6 @@ button {
 .guide-detail,
 .topic-card,
 .calendar-card,
-.glossary-card,
 .source-card {
   padding: var(--space-5);
   border: 1px solid var(--line);
@@ -749,7 +745,6 @@ button {
 .guide-card h4,
 .topic-card h4,
 .calendar-card h4,
-.glossary-card h4,
 .learning-head h4,
 .guide-detail-head h4,
 .source-card strong {
@@ -1164,37 +1159,210 @@ button {
   font-size: 0.98rem;
 }
 
-.glossary-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.glossary-card {
-  display: flex;
-  flex-direction: column;
+.glossary-workspace {
+  display: grid;
   gap: var(--space-4);
 }
 
-.glossary-card h4 {
-  margin: 0;
-  font-size: 1.22rem;
-  letter-spacing: -0.04em;
+.glossary-toolbar,
+.glossary-mode-switch,
+.glossary-tabs,
+.glossary-path-grid {
+  display: flex;
+  gap: var(--space-3);
 }
 
-.glossary-card small {
+.glossary-toolbar {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.glossary-mode-switch {
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.glossary-mode-switch button,
+.glossary-tabs button {
+  min-height: 40px;
+  border: none;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.glossary-mode-switch button {
+  padding: 0 16px;
+  background: transparent;
+}
+
+.glossary-mode-switch button.is-active,
+.glossary-tabs button.is-active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 8px 20px rgba(18, 23, 34, 0.08);
+}
+
+.glossary-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--subtle);
+}
+
+.glossary-count strong {
+  color: var(--accent);
+  font-size: 1.35rem;
+}
+
+.glossary-tabs {
+  flex-wrap: wrap;
+}
+
+.glossary-tabs button {
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.glossary-path-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.glossary-path-grid button {
+  min-height: 120px;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    transform var(--transition),
+    border-color var(--transition),
+    background-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.glossary-path-grid button:hover,
+.glossary-path-grid button:focus-visible,
+.glossary-path-grid button.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(10, 103, 255, 0.18);
+  background: #fff;
+  outline: none;
+  box-shadow: 0 16px 34px rgba(18, 23, 34, 0.08);
+}
+
+.glossary-path-grid strong,
+.glossary-path-grid span {
   display: block;
-  margin-top: 6px;
+}
+
+.glossary-path-grid strong {
+  font-size: 1rem;
+}
+
+.glossary-path-grid span {
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.glossary-reader {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.glossary-term-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(760px, calc(100vh - 290px));
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.glossary-term-item {
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    transform var(--transition),
+    border-color var(--transition),
+    background-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.glossary-term-item:hover,
+.glossary-term-item:focus-visible,
+.glossary-term-item.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(10, 103, 255, 0.18);
+  background: var(--surface-strong);
+  outline: none;
+  box-shadow: 0 14px 30px rgba(18, 23, 34, 0.07);
+}
+
+.glossary-term-item span {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.glossary-term-item strong,
+.glossary-term-item small,
+.glossary-term-item p {
+  display: block;
+}
+
+.glossary-term-item strong {
+  margin-top: 8px;
+  font-size: 1.02rem;
+}
+
+.glossary-term-item small {
+  margin-top: 4px;
   color: var(--subtle);
   font-weight: 700;
 }
 
-.glossary-chip {
-  align-self: flex-start;
-  min-height: 30px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: rgba(10, 103, 255, 0.08);
-  color: var(--accent);
-  font-size: 0.78rem;
+.glossary-term-item p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.glossary-detail {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 253, 0.72)),
+    rgba(255, 255, 255, 0.72);
+}
+
+.glossary-detail-head h4 {
+  margin: 14px 0 8px;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+}
+
+.glossary-detail-head p {
+  margin: 0;
+  color: var(--subtle);
   font-weight: 800;
 }
 
@@ -1677,12 +1845,15 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .glossary-path-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .priority-grid,
   .module-grid,
   .topic-grid,
   .rate-grid,
-  .calendar-grid,
-  .glossary-grid {
+  .calendar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1695,8 +1866,13 @@ button {
 @media (max-width: 1160px) {
   .app-shell,
   .encyclopedia-layout,
+  .glossary-reader,
   .settings-layout {
     grid-template-columns: 1fr;
+  }
+
+  .glossary-term-list {
+    max-height: none;
   }
 
   .detail-grid,
@@ -1742,12 +1918,12 @@ button {
   }
 
   .workbench-grid,
+  .glossary-path-grid,
   .priority-grid,
   .module-grid,
   .topic-grid,
   .rate-grid,
-  .calendar-grid,
-  .glossary-grid {
+  .calendar-grid {
     grid-template-columns: 1fr;
   }
 

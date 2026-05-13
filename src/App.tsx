@@ -19,6 +19,8 @@ import {
   type TaxPlanningPlay,
 } from "./data/financeData";
 
+type GlossaryMode = "category" | "path";
+
 type TabId =
   | "overview"
   | "academy"
@@ -60,6 +62,40 @@ type AiTopic = {
 type AiResponse = {
   answer: string;
 };
+
+type GlossaryLearningPath = {
+  id: string;
+  label: string;
+  detail: string;
+  terms: string[];
+};
+
+const glossaryLearningPaths: GlossaryLearningPath[] = [
+  {
+    id: "starter",
+    label: "入门必学",
+    detail: "先建立报表、利润、现金和经营指标的基础语言。",
+    terms: ["收入确认", "权责发生制", "资产负债表", "利润表", "现金流量表", "经营现金流", "毛利率", "营运资金"],
+  },
+  {
+    id: "ceo-misread",
+    label: "CEO 高频误区",
+    detail: "集中解决最容易把经营判断带偏的概念混淆。",
+    terms: ["收入确认", "收付实现制", "应收账款", "Runway", "Burn Rate", "EBITDA", "预算", "滚动预测"],
+  },
+  {
+    id: "china-core",
+    label: "中国经营必懂",
+    detail: "围绕增值税、发票、所得税和年度清算建立合规框架。",
+    terms: ["增值税", "销项税额", "进项税额", "留抵税额", "增值税专用发票", "增值税普通发票", "数电发票", "价税合计", "汇算清缴", "税会差异"],
+  },
+  {
+    id: "singapore-core",
+    label: "新加坡经营必懂",
+    detail: "围绕 GST、年度备案、财年、工资和 CPF 管理运营节奏。",
+    terms: ["GST", "Output Tax", "Input Tax", "Tax Invoice", "FYE", "ECI", "Annual Return", "XBRL", "CPF", "Itemised Payslip"],
+  },
+];
 
 const aiTopics: AiTopic[] = [
   {
@@ -270,6 +306,10 @@ function App() {
   const [selectedGuideId, setSelectedGuideId] = useState(reportGuides[0]?.id ?? "");
   const [selectedPlanId, setSelectedPlanId] = useState(taxPlanningPlays[0]?.id ?? "");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceGuides[0]?.id ?? "");
+  const [glossaryMode, setGlossaryMode] = useState<GlossaryMode>("category");
+  const [selectedGlossaryCategory, setSelectedGlossaryCategory] = useState("全部");
+  const [selectedGlossaryPathId, setSelectedGlossaryPathId] = useState(glossaryLearningPaths[0]?.id ?? "");
+  const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState(glossaryTerms[0]?.term ?? "");
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("gpt-5.5");
@@ -343,7 +383,20 @@ function App() {
     return selectedRegion === "全部" || item.region === selectedRegion;
   });
 
-  const filteredGlossary = glossaryTerms.filter((term) => {
+  const glossaryCategories = ["全部", ...new Set(glossaryTerms.map((term) => term.category))];
+  const selectedGlossaryPath = glossaryLearningPaths.find((path) => path.id === selectedGlossaryPathId) ?? glossaryLearningPaths[0];
+
+  const visibleGlossaryBase = glossaryTerms.filter((term) => {
+    const matchesGlossaryCategory =
+      glossaryMode === "category" &&
+      (selectedGlossaryCategory === "全部" || term.category === selectedGlossaryCategory);
+    const matchesGlossaryPath =
+      glossaryMode === "path" && selectedGlossaryPath.terms.includes(term.term);
+
+    return matchesRegion(term.region) && (matchesGlossaryCategory || matchesGlossaryPath);
+  });
+
+  const filteredGlossary = visibleGlossaryBase.filter((term) => {
     const matchesGlossarySearch = matchesSearch([
       term.term,
       term.alias ?? "",
@@ -355,8 +408,14 @@ function App() {
       term.region,
     ]);
 
-    return matchesRegion(term.region) && matchesGlossarySearch;
+    return matchesGlossarySearch;
   });
+
+  const selectedGlossary =
+    filteredGlossary.find((term) => term.term === selectedGlossaryTerm) ??
+    filteredGlossary[0] ??
+    visibleGlossaryBase[0] ??
+    glossaryTerms[0];
 
   const filteredPlans = taxPlanningPlays.filter((plan) => {
     return (
@@ -527,6 +586,12 @@ function App() {
       setSelectedInvoiceId(filteredInvoices[0].id);
     }
   }, [filteredInvoices, selectedInvoiceId]);
+
+  useEffect(() => {
+    if (!filteredGlossary.some((term) => term.term === selectedGlossaryTerm) && filteredGlossary[0]) {
+      setSelectedGlossaryTerm(filteredGlossary[0].term);
+    }
+  }, [filteredGlossary, selectedGlossaryTerm]);
 
   useEffect(() => {
     const storedKey = window.localStorage.getItem("financeknowhow.openaiApiKey");
@@ -1811,58 +1876,139 @@ function App() {
                 <div className="section-header">
                   <div>
                     <p className="eyebrow">术语表</p>
-                    <h3>{filteredGlossary.length} 个核心术语，把财务语言翻译成经营语言</h3>
+                    <h3>按分类或学习路径理解财务术语</h3>
                   </div>
                 </div>
 
-                <div className="glossary-grid">
-                  {filteredGlossary.map((item) => (
-                    <article key={item.term} className="glossary-card">
-                      <div className="glossary-header">
-                        <div>
-                          <h4>{item.term}</h4>
-                          {item.alias ? <small>{item.alias}</small> : null}
+                <div className="glossary-workspace">
+                  <div className="glossary-toolbar">
+                    <div className="glossary-mode-switch" aria-label="术语表浏览方式">
+                      <button
+                        type="button"
+                        className={glossaryMode === "category" ? "is-active" : ""}
+                        onClick={() => setGlossaryMode("category")}
+                      >
+                        按分类学习
+                      </button>
+                      <button
+                        type="button"
+                        className={glossaryMode === "path" ? "is-active" : ""}
+                        onClick={() => setGlossaryMode("path")}
+                      >
+                        按学习路径
+                      </button>
+                    </div>
+
+                    <div className="glossary-count">
+                      <strong>{filteredGlossary.length}</strong>
+                      <span>个术语</span>
+                    </div>
+                  </div>
+
+                  {glossaryMode === "category" ? (
+                    <div className="glossary-tabs" role="tablist" aria-label="术语分类">
+                      {glossaryCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          role="tab"
+                          aria-selected={selectedGlossaryCategory === category}
+                          className={selectedGlossaryCategory === category ? "is-active" : ""}
+                          onClick={() => setSelectedGlossaryCategory(category)}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="glossary-path-grid" role="tablist" aria-label="术语学习路径">
+                      {glossaryLearningPaths.map((path) => (
+                        <button
+                          key={path.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={selectedGlossaryPathId === path.id}
+                          className={selectedGlossaryPathId === path.id ? "is-active" : ""}
+                          onClick={() => setSelectedGlossaryPathId(path.id)}
+                        >
+                          <strong>{path.label}</strong>
+                          <span>{path.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="glossary-reader">
+                    <aside className="glossary-term-list" aria-label="术语列表">
+                      {filteredGlossary.map((item) => {
+                        const isActive = selectedGlossary?.term === item.term;
+
+                        return (
+                          <button
+                            key={item.term}
+                            type="button"
+                            className={`glossary-term-item ${isActive ? "is-active" : ""}`}
+                            onClick={() => setSelectedGlossaryTerm(item.term)}
+                          >
+                            <span>{item.category}</span>
+                            <strong>{item.term}</strong>
+                            {item.alias ? <small>{item.alias}</small> : null}
+                            <p>{item.plain}</p>
+                          </button>
+                        );
+                      })}
+
+                      {filteredGlossary.length === 0 ? (
+                        <div className="empty-state">
+                          <h4>没有找到匹配术语</h4>
+                          <p>试试搜索毛利率、营运资金、ECI、GST、CPF、收入确认等关键词。</p>
                         </div>
-                        <span>{item.region}</span>
-                      </div>
-                      <div className="glossary-chip">{item.category}</div>
+                      ) : null}
+                    </aside>
 
-                      <section className="glossary-section">
-                        <span>明确定义</span>
-                        <p>{item.definition}</p>
-                      </section>
+                    {selectedGlossary ? (
+                      <article className="glossary-detail">
+                        <div className="glossary-detail-head">
+                          <div>
+                            <div className="detail-tags">
+                              <span>{selectedGlossary.region}</span>
+                              <span>{selectedGlossary.category}</span>
+                            </div>
+                            <h4>{selectedGlossary.term}</h4>
+                            {selectedGlossary.alias ? <p>{selectedGlossary.alias}</p> : null}
+                          </div>
+                        </div>
 
-                      <section className="glossary-section">
-                        <span>大白话</span>
-                        <p>{item.plain}</p>
-                      </section>
+                        <section className="glossary-section">
+                          <span>明确定义</span>
+                          <p>{selectedGlossary.definition}</p>
+                        </section>
 
-                      <section className="glossary-section">
-                        <span>相似概念辨析</span>
-                        <ul className="glossary-compare-list">
-                          {item.distinctions.map((distinction) => (
-                            <li key={distinction.label}>
-                              <strong>{distinction.label}</strong>
-                              <p>{distinction.detail}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
+                        <section className="glossary-section">
+                          <span>大白话</span>
+                          <p>{selectedGlossary.plain}</p>
+                        </section>
 
-                      <section className="glossary-why">
-                        <span>CEO 为什么要懂</span>
-                        <strong>{item.whyItMatters}</strong>
-                      </section>
-                    </article>
-                  ))}
-                </div>
+                        <section className="glossary-section">
+                          <span>相似概念辨析</span>
+                          <ul className="glossary-compare-list">
+                            {selectedGlossary.distinctions.map((distinction) => (
+                              <li key={distinction.label}>
+                                <strong>{distinction.label}</strong>
+                                <p>{distinction.detail}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
 
-                {filteredGlossary.length === 0 ? (
-                  <div className="empty-state">
-                    <h4>没有找到匹配术语</h4>
-                    <p>试试搜索毛利率、营运资金、ECI、GST、CPF、收入确认等关键词。</p>
+                        <section className="glossary-why">
+                          <span>CEO 为什么要懂</span>
+                          <strong>{selectedGlossary.whyItMatters}</strong>
+                        </section>
+                      </article>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
               </section>
             </section>
           ) : null}
