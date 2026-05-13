@@ -47,9 +47,97 @@ type AiChatMessage = {
   content: string;
 };
 
+type AiTopicId = "reading" | "statements" | "tax" | "invoices" | "compliance";
+
+type AiTopic = {
+  id: AiTopicId;
+  label: string;
+  detail: string;
+  systemFocus: string;
+  starters: string[];
+};
+
 type AiResponse = {
   answer: string;
 };
+
+const aiTopics: AiTopic[] = [
+  {
+    id: "reading",
+    label: "当前阅读",
+    detail: "围绕正在看的知识条目解释、扩展和追问",
+    systemFocus: "优先解释当前阅读内容，用小白 CEO 能理解的语言拆解概念、判断逻辑和下一步追问。",
+    starters: [
+      "这段内容用 CEO 能理解的话解释一下",
+      "这里最容易误解的点是什么？",
+      "我应该继续追问财务团队哪些问题？",
+    ],
+  },
+  {
+    id: "statements",
+    label: "报表",
+    detail: "利润表、资产负债表、现金流和经营指标",
+    systemFocus: "优先从三张财务报表、指标交叉验证、现金流和经营质量角度回答。",
+    starters: [
+      "这类问题应该先看哪张财务报表？",
+      "利润和现金流为什么可能不一致？",
+      "我该怎样判断公司经营质量是否变差？",
+    ],
+  },
+  {
+    id: "tax",
+    label: "税务",
+    detail: "中国与新加坡税负、筹划逻辑和风险边界",
+    systemFocus: "优先区分中国与新加坡税务规则，说明合法筹划逻辑、适用条件、资料留痕和红线边界。",
+    starters: [
+      "这个税务问题在中国和新加坡有什么差异？",
+      "这里有哪些合规税筹思路？",
+      "哪些做法会越过税务红线？",
+    ],
+  },
+  {
+    id: "invoices",
+    label: "发票",
+    detail: "发票类型、税率、抵扣、归档和票据风险",
+    systemFocus: "优先解释发票或 tax invoice 的法律含义、税率、抵扣影响、归档要求和虚假票据风险。",
+    starters: [
+      "这个场景应该开什么类型的发票？",
+      "这张票对抵扣和入账有什么影响？",
+      "发票管理里最常见的风险是什么？",
+    ],
+  },
+  {
+    id: "compliance",
+    label: "合规",
+    detail: "申报日历、董事责任、审计、秘书和资料留痕",
+    systemFocus: "优先从公司治理、申报期限、董事责任、审计要求、公司秘书和留痕资料角度回答。",
+    starters: [
+      "这个事项有没有申报期限或罚款风险？",
+      "CEO 和董事在这里承担什么责任？",
+      "我应该要求团队保留哪些资料？",
+    ],
+  },
+];
+
+function createEmptyAiThreads(): Record<AiTopicId, AiChatMessage[]> {
+  return {
+    reading: [],
+    statements: [],
+    tax: [],
+    invoices: [],
+    compliance: [],
+  };
+}
+
+function createEmptyAiDrafts(): Record<AiTopicId, string> {
+  return {
+    reading: "",
+    statements: "",
+    tax: "",
+    invoices: "",
+    compliance: "",
+  };
+}
 
 const navItems: Array<{ id: TabId; order: string; label: string; detail: string }> = [
   { id: "overview", order: "01", label: "总览", detail: "先建立财务全局观" },
@@ -186,12 +274,18 @@ function App() {
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("gpt-5.5");
   const [aiGlobalPrompt, setAiGlobalPrompt] = useState("");
-  const [aiInput, setAiInput] = useState("");
-  const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
-  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [activeAiTopicId, setActiveAiTopicId] = useState<AiTopicId>("reading");
+  const [aiDrafts, setAiDrafts] = useState<Record<AiTopicId, string>>(() => createEmptyAiDrafts());
+  const [aiThreads, setAiThreads] = useState<Record<AiTopicId, AiChatMessage[]>>(() => createEmptyAiThreads());
+  const [loadingAiTopicId, setLoadingAiTopicId] = useState<AiTopicId | null>(null);
   const [aiError, setAiError] = useState("");
 
   const deferredSearch = useDeferredValue(normalizeSearchText(searchText));
+  const activeAiTopic = aiTopics.find((topic) => topic.id === activeAiTopicId) ?? aiTopics[0];
+  const activeAiMessages = aiThreads[activeAiTopicId];
+  const activeAiInput = aiDrafts[activeAiTopicId];
+  const isAiLoading = loadingAiTopicId !== null;
+  const isActiveAiTopicLoading = loadingAiTopicId === activeAiTopicId;
 
   const pillars = ["全部", ...new Set(knowledgeEntries.map((entry) => entry.pillar))];
   const categories = [
@@ -580,7 +674,10 @@ function App() {
   }
 
   async function handleAskAi() {
-    const question = aiInput.trim();
+    const topicId = activeAiTopicId;
+    const topic = activeAiTopic;
+    const question = aiDrafts[topicId].trim();
+    const currentMessages = aiThreads[topicId];
 
     if (!question || isAiLoading) {
       return;
@@ -597,12 +694,14 @@ function App() {
       role: "user",
       content: question,
     };
-    const nextMessages = [...aiMessages, userMessage];
+    const nextMessages = [...currentMessages, userMessage];
     const systemPrompt = [
       "你是 FinanceKnowHow 的财务学习助手，面向没有财务背景的 CEO。",
       "回答要专业、准确、克制，聚焦中国和新加坡的经营财务、税务、发票和合规问题。",
       "优先解释概念、判断逻辑、风险边界和 CEO 应该追问的问题。",
       "不要编造政策细节；如果需要正式结论，提醒用户以官方来源和专业顾问意见为准。",
+      `当前对话话题：${topic.label}`,
+      `话题侧重点：${topic.systemFocus}`,
       aiGlobalPrompt.trim() ? `用户全局提示词：\n${aiGlobalPrompt.trim()}` : "",
       `当前阅读位置：${activeReadingContext.label} / ${activeReadingContext.title}`,
       `当前内容上下文：\n${activeReadingContext.body}`,
@@ -610,10 +709,16 @@ function App() {
       .filter(Boolean)
       .join("\n\n");
 
-    setAiMessages(nextMessages);
-    setAiInput("");
+    setAiThreads((threads) => ({
+      ...threads,
+      [topicId]: nextMessages,
+    }));
+    setAiDrafts((drafts) => ({
+      ...drafts,
+      [topicId]: "",
+    }));
     setAiError("");
-    setIsAiLoading(true);
+    setLoadingAiTopicId(topicId);
 
     try {
       const response = await invoke<AiResponse>("ask_ai", {
@@ -628,18 +733,21 @@ function App() {
         },
       });
 
-      setAiMessages([
-        ...nextMessages,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: response.answer,
-        },
-      ]);
+      setAiThreads((threads) => ({
+        ...threads,
+        [topicId]: [
+          ...nextMessages,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            content: response.answer,
+          },
+        ],
+      }));
     } catch (error) {
       setAiError(error instanceof Error ? error.message : String(error));
     } finally {
-      setIsAiLoading(false);
+      setLoadingAiTopicId(null);
     }
   }
 
@@ -1840,61 +1948,80 @@ function App() {
             </button>
           </div>
 
+          <section className="ai-topic-area" aria-label="AI 对话话题">
+            <div className="ai-topic-tabs" role="tablist" aria-label="选择 AI 对话话题">
+              {aiTopics.map((topic) => {
+                const isActive = activeAiTopicId === topic.id;
+                const isLoading = loadingAiTopicId === topic.id;
+                const messageCount = aiThreads[topic.id].length;
+
+                return (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`ai-topic-tab ${isActive ? "is-active" : ""} ${isLoading ? "is-loading" : ""}`}
+                    onClick={() => {
+                      setActiveAiTopicId(topic.id);
+                      setAiError("");
+                    }}
+                  >
+                    <span>{topic.label}</span>
+                    {isLoading ? (
+                      <small aria-label="正在生成">...</small>
+                    ) : messageCount > 0 ? (
+                      <small>{messageCount}</small>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="ai-topic-meta">
+              <strong>{activeAiTopic.label}</strong>
+              <p>{activeAiTopic.detail}</p>
+            </div>
+          </section>
+
           <section className="ai-context-card">
             <span>{activeReadingContext.label}</span>
             <strong>{activeReadingContext.title}</strong>
             <p>提问时会自动带入当前阅读内容，适合解释概念、比较地区差异、追问风险边界。</p>
           </section>
 
-          <section className="ai-settings">
-            <div className="ai-settings-summary">
-              <span>AI 配置</span>
-              <strong>{aiApiKey.trim() ? "API Key 已配置" : "需要 API Key"}</strong>
-              <small>
-                {aiGlobalPrompt.trim()
-                  ? "全局提示词会随每次提问一起发送。"
-                  : "可在设置页添加全局提示词，让 AI 按你的公司背景和回答格式工作。"}
-              </small>
-            </div>
-            <button
-              type="button"
-              className="quiet-link"
-              onClick={() => {
-                setIsAiPanelOpen(false);
-                startTransition(() => setActiveTab("settings"));
-              }}
-            >
-              打开 AI 设置
-            </button>
-          </section>
-
           <div className="ai-message-list" role="log" aria-live="polite">
-            {aiMessages.length === 0 ? (
+            {activeAiMessages.length === 0 ? (
               <div className="ai-empty-state">
                 <strong>可以这样问</strong>
-                <button type="button" onClick={() => setAiInput("这段内容用 CEO 能理解的话解释一下")}>
-                  这段内容用 CEO 能理解的话解释一下
-                </button>
-                <button type="button" onClick={() => setAiInput("这里的风险边界是什么？哪些事情不能做？")}>
-                  这里的风险边界是什么？哪些事情不能做？
-                </button>
-                <button type="button" onClick={() => setAiInput("中国和新加坡在这个问题上有什么差异？")}>
-                  中国和新加坡在这个问题上有什么差异？
-                </button>
+                {activeAiTopic.starters.map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    onClick={() =>
+                      setAiDrafts((drafts) => ({
+                        ...drafts,
+                        [activeAiTopicId]: starter,
+                      }))
+                    }
+                  >
+                    {starter}
+                  </button>
+                ))}
               </div>
             ) : null}
 
-            {aiMessages.map((message) => (
+            {activeAiMessages.map((message) => (
               <article key={message.id} className={`ai-message ai-message-${message.role}`}>
                 <span>{message.role === "user" ? "你" : "AI"}</span>
                 <p>{message.content}</p>
               </article>
             ))}
 
-            {isAiLoading ? (
+            {isActiveAiTopicLoading ? (
               <article className="ai-message ai-message-assistant">
                 <span>AI</span>
-                <p>正在结合当前内容生成解释...</p>
+                <p>正在结合“{activeAiTopic.label}”话题和当前内容生成解释...</p>
               </article>
             ) : null}
           </div>
@@ -1910,10 +2037,15 @@ function App() {
           >
             <textarea
               placeholder="输入你的问题，例如：这条税筹逻辑适合什么公司？"
-              value={aiInput}
-              onChange={(event) => setAiInput(event.currentTarget.value)}
+              value={activeAiInput}
+              onChange={(event) =>
+                setAiDrafts((drafts) => ({
+                  ...drafts,
+                  [activeAiTopicId]: event.currentTarget.value,
+                }))
+              }
             />
-            <button type="submit" disabled={isAiLoading || !aiInput.trim()}>
+            <button type="submit" disabled={isAiLoading || !activeAiInput.trim()}>
               发送
             </button>
           </form>
