@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 import {
@@ -37,6 +38,16 @@ type SearchSuggestion = {
   targetType?: "entry" | "plan" | "invoice" | "glossary";
   targetId?: string;
   score?: number;
+};
+
+type AiChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+};
+
+type AiResponse = {
+  answer: string;
 };
 
 const navItems: Array<{ id: TabId; order: string; label: string; detail: string }> = [
@@ -169,6 +180,14 @@ function App() {
   const [selectedGuideId, setSelectedGuideId] = useState(reportGuides[0]?.id ?? "");
   const [selectedPlanId, setSelectedPlanId] = useState(taxPlanningPlays[0]?.id ?? "");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceGuides[0]?.id ?? "");
+  const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiModel, setAiModel] = useState("gpt-5.5");
+  const [aiInput, setAiInput] = useState("");
+  const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const deferredSearch = useDeferredValue(normalizeSearchText(searchText));
 
@@ -387,6 +406,7 @@ function App() {
     filteredPlans.find((plan) => plan.id === selectedPlanId) ?? filteredPlans[0] ?? taxPlanningPlays[0];
   const selectedInvoice =
     filteredInvoices.find((guide) => guide.id === selectedInvoiceId) ?? filteredInvoices[0] ?? invoiceGuides[0];
+  const activeReadingContext = buildReadingContext();
 
   useEffect(() => {
     if (!filteredEntries.some((entry) => entry.id === selectedEntryId) && filteredEntries[0]) {
@@ -405,6 +425,31 @@ function App() {
       setSelectedInvoiceId(filteredInvoices[0].id);
     }
   }, [filteredInvoices, selectedInvoiceId]);
+
+  useEffect(() => {
+    const storedKey = window.localStorage.getItem("financeknowhow.openaiApiKey");
+    const storedModel = window.localStorage.getItem("financeknowhow.openaiModel");
+
+    if (storedKey) {
+      setAiApiKey(storedKey);
+    }
+
+    if (storedModel) {
+      setAiModel(storedModel);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (aiApiKey.trim()) {
+      window.localStorage.setItem("financeknowhow.openaiApiKey", aiApiKey.trim());
+    } else {
+      window.localStorage.removeItem("financeknowhow.openaiApiKey");
+    }
+  }, [aiApiKey]);
+
+  useEffect(() => {
+    window.localStorage.setItem("financeknowhow.openaiModel", aiModel);
+  }, [aiModel]);
 
   async function handleOpenExternal(url: string) {
     try {
@@ -456,6 +501,136 @@ function App() {
         setSelectedInvoiceId(suggestion.targetId);
       }
     });
+  }
+
+  function buildReadingContext() {
+    if (activeTab === "encyclopedia" && selectedEntry) {
+      return {
+        label: "财务百科",
+        title: selectedEntry.title,
+        body: [
+          selectedEntry.summary,
+          `CEO 问题：${selectedEntry.ceoQuestion}`,
+          `核心概念：${selectedEntry.concept.join("；")}`,
+          `为什么重要：${selectedEntry.whyItMatters.join("；")}`,
+          `怎么读：${selectedEntry.howToRead.join("；")}`,
+          `红旗信号：${selectedEntry.redFlags.join("；")}`,
+        ].join("\n"),
+      };
+    }
+
+    if (activeTab === "tax-planning" && selectedPlan) {
+      return {
+        label: "税务筹划",
+        title: selectedPlan.title,
+        body: [
+          selectedPlan.summary,
+          `适用场景：${selectedPlan.suitability}`,
+          `底层逻辑：${selectedPlan.logic.join("；")}`,
+          `具体做法：${selectedPlan.howItWorks.join("；")}`,
+          `风险：${selectedPlan.risks.join("；")}`,
+          `红线边界：${selectedPlan.boundaries.join("；")}`,
+        ].join("\n"),
+      };
+    }
+
+    if (activeTab === "invoices" && selectedInvoice) {
+      return {
+        label: "发票与税率",
+        title: selectedInvoice.title,
+        body: [
+          selectedInvoice.summary,
+          `使用场景：${selectedInvoice.useCase}`,
+          `法律含义：${selectedInvoice.legalMeaning.join("；")}`,
+          `税率理解：${selectedInvoice.taxRates.join("；")}`,
+          `抵扣与入账：${selectedInvoice.deductibleImpact.join("；")}`,
+          `风险信号：${selectedInvoice.riskFlags.join("；")}`,
+        ].join("\n"),
+      };
+    }
+
+    if (activeTab === "academy" && selectedModule) {
+      return {
+        label: "学习路径",
+        title: selectedModule.title,
+        body: [selectedModule.outcome, `课程内容：${selectedModule.lessons.join("；")}`].join("\n"),
+      };
+    }
+
+    return {
+      label: "全局知识库",
+      title: "中国与新加坡经营财务知识库",
+      body: "当前知识库覆盖财务报表、现金流、预算、税务筹划、发票、税率、经营日历、术语解释，以及中国和新加坡的高频财务合规主题。",
+    };
+  }
+
+  async function handleAskAi() {
+    const question = aiInput.trim();
+
+    if (!question || isAiLoading) {
+      return;
+    }
+
+    if (!aiApiKey.trim()) {
+      setIsAiSettingsOpen(true);
+      setAiError("请先在设置里填写 OpenAI API Key。");
+      return;
+    }
+
+    const userMessage: AiChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: question,
+    };
+    const nextMessages = [...aiMessages, userMessage];
+    const systemPrompt = [
+      "你是 FinanceKnowHow 的财务学习助手，面向没有财务背景的 CEO。",
+      "回答要专业、准确、克制，聚焦中国和新加坡的经营财务、税务、发票和合规问题。",
+      "优先解释概念、判断逻辑、风险边界和 CEO 应该追问的问题。",
+      "不要编造政策细节；如果需要正式结论，提醒用户以官方来源和专业顾问意见为准。",
+      `当前阅读位置：${activeReadingContext.label} / ${activeReadingContext.title}`,
+      `当前内容上下文：\n${activeReadingContext.body}`,
+    ].join("\n\n");
+
+    setAiMessages(nextMessages);
+    setAiInput("");
+    setAiError("");
+    setIsAiLoading(true);
+
+    try {
+      const response = await invoke<AiResponse>("ask_ai", {
+        request: {
+          api_key: aiApiKey.trim(),
+          model: aiModel.trim() || "gpt-5.5",
+          system_prompt: systemPrompt,
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+        },
+      });
+
+      setAiMessages([
+        ...nextMessages,
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: response.answer,
+        },
+      ]);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
+
+  function openAiPanel() {
+    setIsAiPanelOpen(true);
+
+    if (!aiApiKey.trim()) {
+      setIsAiSettingsOpen(true);
+    }
   }
 
   return (
@@ -609,6 +784,10 @@ function App() {
                 </div>
               ) : null}
             </div>
+
+            <button type="button" className="ai-topbar-button" onClick={openAiPanel}>
+              AI 提问
+            </button>
           </div>
         </header>
 
@@ -1521,6 +1700,119 @@ function App() {
           ) : null}
         </div>
       </main>
+
+      <button type="button" className="ai-floating-button" onClick={openAiPanel} aria-label="打开 AI 财务助手">
+        AI
+      </button>
+
+      {isAiPanelOpen ? (
+        <aside className="ai-panel" aria-label="AI 财务助手">
+          <div className="ai-panel-head">
+            <div>
+              <p className="eyebrow">AI assistant</p>
+              <h3>随读随问</h3>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="关闭 AI 财务助手"
+              onClick={() => setIsAiPanelOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+
+          <section className="ai-context-card">
+            <span>{activeReadingContext.label}</span>
+            <strong>{activeReadingContext.title}</strong>
+            <p>提问时会自动带入当前阅读内容，适合解释概念、比较地区差异、追问风险边界。</p>
+          </section>
+
+          <section className="ai-settings">
+            <button
+              type="button"
+              className="ai-settings-toggle"
+              onClick={() => setIsAiSettingsOpen((isOpen) => !isOpen)}
+            >
+              <span>设置</span>
+              <strong>{aiApiKey.trim() ? "API Key 已配置" : "需要 API Key"}</strong>
+            </button>
+
+            {isAiSettingsOpen ? (
+              <div className="ai-settings-body">
+                <label>
+                  <span>OpenAI API Key</span>
+                  <input
+                    type="password"
+                    placeholder="sk-..."
+                    value={aiApiKey}
+                    onChange={(event) => setAiApiKey(event.currentTarget.value)}
+                  />
+                </label>
+                <label>
+                  <span>模型</span>
+                  <input
+                    type="text"
+                    value={aiModel}
+                    onChange={(event) => setAiModel(event.currentTarget.value)}
+                  />
+                </label>
+                <small>API Key 仅保存在本机应用存储中，不会写入项目代码或提交到 Git。</small>
+              </div>
+            ) : null}
+          </section>
+
+          <div className="ai-message-list" role="log" aria-live="polite">
+            {aiMessages.length === 0 ? (
+              <div className="ai-empty-state">
+                <strong>可以这样问</strong>
+                <button type="button" onClick={() => setAiInput("这段内容用 CEO 能理解的话解释一下")}>
+                  这段内容用 CEO 能理解的话解释一下
+                </button>
+                <button type="button" onClick={() => setAiInput("这里的风险边界是什么？哪些事情不能做？")}>
+                  这里的风险边界是什么？哪些事情不能做？
+                </button>
+                <button type="button" onClick={() => setAiInput("中国和新加坡在这个问题上有什么差异？")}>
+                  中国和新加坡在这个问题上有什么差异？
+                </button>
+              </div>
+            ) : null}
+
+            {aiMessages.map((message) => (
+              <article key={message.id} className={`ai-message ai-message-${message.role}`}>
+                <span>{message.role === "user" ? "你" : "AI"}</span>
+                <p>{message.content}</p>
+              </article>
+            ))}
+
+            {isAiLoading ? (
+              <article className="ai-message ai-message-assistant">
+                <span>AI</span>
+                <p>正在结合当前内容生成解释...</p>
+              </article>
+            ) : null}
+          </div>
+
+          {aiError ? <p className="ai-error">{aiError}</p> : null}
+
+          <form
+            className="ai-input-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAskAi();
+            }}
+          >
+            <textarea
+              placeholder="输入你的问题，例如：这条税筹逻辑适合什么公司？"
+              value={aiInput}
+              onChange={(event) => setAiInput(event.currentTarget.value)}
+            />
+            <button type="submit" disabled={isAiLoading || !aiInput.trim()}>
+              发送
+            </button>
+          </form>
+        </aside>
+      ) : null}
     </div>
   );
 }
