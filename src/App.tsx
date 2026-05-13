@@ -347,8 +347,11 @@ function App() {
     const matchesGlossarySearch = matchesSearch([
       term.term,
       term.alias ?? "",
-      term.simple,
+      term.category,
+      term.definition,
+      term.plain,
       term.whyItMatters,
+      term.distinctions.map((item) => `${item.label} ${item.detail}`).join(" "),
       term.region,
     ]);
 
@@ -468,15 +471,18 @@ function App() {
               id: `glossary-${term.term}`,
               kind: "content" as const,
               label: term.term,
-              helper: `${term.region} · ${term.alias ? `${term.alias} · ` : ""}${term.simple}`,
+              helper: `${term.region} · ${term.category} · ${term.alias ? `${term.alias} · ` : ""}${term.plain}`,
               query: term.term,
               tab: "glossary" as const,
               targetType: "glossary" as const,
               score: scoreSearchCandidate(deferredSearch, [
                 term.term,
                 term.alias ?? "",
-                term.simple,
+                term.category,
+                term.definition,
+                term.plain,
                 term.whyItMatters,
+                term.distinctions.map((item) => `${item.label} ${item.detail}`).join(" "),
               ]),
             }))
             .filter((suggestion) => (suggestion.score ?? 0) > 0),
@@ -586,6 +592,29 @@ function App() {
     startTransition(() => {
       setActiveTab("invoices");
       setSelectedInvoiceId(guide.id);
+    });
+  }
+
+  function openKnowledgeEntryById(entryId: string) {
+    const entry = knowledgeEntries.find((item) => item.id === entryId);
+
+    if (entry) {
+      openEntry(entry);
+    }
+  }
+
+  function openStudyModuleById(moduleId: string) {
+    startTransition(() => {
+      setSelectedModuleId(moduleId);
+      setActiveTab("academy");
+    });
+  }
+
+  function openReportGuideById(guideId: string) {
+    startTransition(() => {
+      setSelectedModuleId("reports");
+      setSelectedGuideId(guideId);
+      setActiveTab("academy");
     });
   }
 
@@ -917,91 +946,118 @@ function App() {
           {activeTab === "overview" ? (
             <section className="page-grid">
               <section className="hero-panel card-panel">
-                <div className="hero-layout">
+                <div className="hero-workbench">
                   <div className="hero-copy">
-                    <p className="eyebrow">Apple-inspired finance encyclopedia</p>
-                    <h2>把财务从“难懂的后台职能”变成 CEO 可以系统掌握的经营学科。</h2>
+                    <p className="eyebrow">经营视图</p>
+                    <h2>经营财务工作台</h2>
                     <p className="hero-description">
-                      这版产品不再只是一个速查工具，而是一套面向经营者的桌面财务教材。
-                      你可以从学习路径入门、沿着三张报表建立判断框架，再进入中国和新加坡的规则地图、
-                      合规税务筹划与发票系统。
+                      从报表、现金流、税务、发票和合规节奏理解公司经营。先建立判断框架，再进入中国与新加坡的规则细节。
                     </p>
-                    <div className="hero-actions">
-                      <button
-                        type="button"
-                        className="primary-action"
-                        onClick={() => {
-                          startTransition(() => setActiveTab("academy"));
-                        }}
-                      >
-                        从学习路径开始
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-action"
-                        onClick={() => {
-                          startTransition(() => setActiveTab("encyclopedia"));
-                        }}
-                      >
-                        打开财务百科
-                      </button>
-                    </div>
                   </div>
 
-                  <div className="hero-stats">
-                    <article className="metric-card">
-                      <span>认知层</span>
-                      <strong>财务思维</strong>
-                      <small>先建立判断框架，再学习规则细节。</small>
-                    </article>
-                    <article className="metric-card">
-                      <span>工具层</span>
-                      <strong>报表阅读</strong>
-                      <small>知道看利润、现金、资产时分别要问什么。</small>
-                    </article>
-                    <article className="metric-card">
-                      <span>执行层</span>
-                      <strong>地区规则</strong>
-                      <small>掌握中国与新加坡高频财务与合规动作。</small>
-                    </article>
-                    <article className="metric-card">
-                      <span>专项层</span>
-                      <strong>税筹与发票</strong>
-                      <small>理解税负优化、票据链路、税率与红线边界。</small>
-                    </article>
+                  <div className="hero-actions">
+                    <button type="button" className="primary-action" onClick={() => openStudyModuleById("foundation")}>
+                      从零开始学习
+                    </button>
+                    <button type="button" className="secondary-action" onClick={() => openReportGuideById("income-statement")}>
+                      先看三张报表
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => {
+                        startTransition(() => setActiveTab("tax-planning"));
+                      }}
+                    >
+                      检查税务风险
+                    </button>
                   </div>
                 </div>
-              </section>
-
-              <section className="overview-grid">
-                {visibleSpotlights.map((card) => (
-                  <article key={card.id} className="spotlight-card card-panel">
-                    <p className="eyebrow">{card.eyebrow}</p>
-                    <h3>{card.title}</h3>
-                    <p>{card.detail}</p>
-                  </article>
-                ))}
               </section>
 
               <section className="section-block card-panel">
                 <div className="section-header">
                   <div>
-                    <p className="eyebrow">系统学习</p>
-                    <h3>四个阶段，把小白带到能独立看经营财务</h3>
+                    <p className="eyebrow">优先入口</p>
+                    <h3>选择你现在最需要解决的问题</h3>
+                  </div>
+                </div>
+
+                <div className="workbench-grid">
+                  <button type="button" className="workbench-card is-featured" onClick={() => openKnowledgeEntryById("cash-vs-profit")}>
+                    <span>现金与生存</span>
+                    <h4>先判断公司还能安全运营多久</h4>
+                    <p>理解利润和现金流的差异，建立 13 周现金视图、回款节奏和 runway 判断。</p>
+                    <small>查看现金流条目</small>
+                  </button>
+
+                  <button type="button" className="workbench-card" onClick={() => openReportGuideById("income-statement")}>
+                    <span>报表阅读</span>
+                    <h4>看懂利润表、资产负债表和现金流量表</h4>
+                    <p>先看收入质量、毛利率、应收、存货和经营现金流，再判断增长质量。</p>
+                    <small>进入报表训练</small>
+                  </button>
+
+                  <button type="button" className="workbench-card" onClick={() => openPlan(taxPlanningPlays[0])}>
+                    <span>税务边界</span>
+                    <h4>区分合规筹划和高风险做法</h4>
+                    <p>理解税负优化的底层逻辑、适用条件、资料留痕和不能碰的红线。</p>
+                    <small>查看税筹策略</small>
+                  </button>
+
+                  <button type="button" className="workbench-card" onClick={() => openInvoice(invoiceGuides[0])}>
+                    <span>发票链路</span>
+                    <h4>确认票、货、款、合同和入账是否一致</h4>
+                    <p>从发票类型、税率、抵扣、归档和异常信号建立票据管理框架。</p>
+                    <small>打开发票模块</small>
+                  </button>
+                </div>
+              </section>
+
+              <section className="section-block card-panel">
+                <div className="section-header">
+                  <div>
+                    <p className="eyebrow">本周关注</p>
+                    <h3>CEO 本周应该关注什么</h3>
+                  </div>
+                </div>
+
+                <div className="priority-grid">
+                  {visibleSpotlights.map((card) => {
+                    const targetAction =
+                      card.id === "cash"
+                        ? () => openKnowledgeEntryById("cash-vs-profit")
+                        : card.id === "reports"
+                          ? () => openKnowledgeEntryById("three-statements")
+                          : card.id === "china"
+                            ? () => openInvoice(invoiceGuides[0])
+                            : () => {
+                                startTransition(() => setActiveTab("calendar"));
+                              };
+
+                    return (
+                      <button key={card.id} type="button" className="priority-card" onClick={targetAction}>
+                        <span>{card.eyebrow}</span>
+                        <h4>{card.title}</h4>
+                        <p>{card.detail}</p>
+                        <small>继续查看</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="section-block card-panel">
+                <div className="section-header">
+                  <div>
+                    <p className="eyebrow">学习路径</p>
+                    <h3>按顺序建立经营财务能力</h3>
                   </div>
                 </div>
 
                 <div className="module-grid">
                   {studyModules.map((module) => (
-                    <button
-                      key={module.id}
-                      type="button"
-                      className="module-card"
-                      onClick={() => {
-                        setSelectedModuleId(module.id);
-                        startTransition(() => setActiveTab("academy"));
-                      }}
-                    >
+                    <button key={module.id} type="button" className="module-card" onClick={() => openStudyModuleById(module.id)}>
                       <span>{module.stage}</span>
                       <h4>{module.title}</h4>
                       <p>{module.outcome}</p>
@@ -1014,62 +1070,26 @@ function App() {
               <section className="section-block card-panel">
                 <div className="section-header">
                   <div>
-                    <p className="eyebrow">报表训练</p>
-                    <h3>先学会看三张表，后面所有判断才有抓手</h3>
-                  </div>
-                </div>
-
-                <div className="guide-grid">
-                  {reportGuides.map((guide) => (
-                    <button
-                      key={guide.id}
-                      type="button"
-                      className="guide-card"
-                      onClick={() => {
-                        setSelectedGuideId(guide.id);
-                        startTransition(() => setActiveTab("academy"));
-                      }}
-                    >
-                      <h4>{guide.title}</h4>
-                      <p>{guide.summary}</p>
-                      <small>{guide.questions[0]}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="section-block card-panel">
-                <div className="section-header">
-                  <div>
-                    <p className="eyebrow">百科入口</p>
-                    <h3>围绕经营、报表、税务、治理、人事，深入查阅每个主题</h3>
+                    <p className="eyebrow">精选主题</p>
+                    <h3>精选百科与专项入口</h3>
                   </div>
                 </div>
 
                 <div className="topic-grid">
-                  {knowledgeEntries.slice(0, 8).map((entry) => (
-                    <button key={entry.id} type="button" className="topic-card" onClick={() => openEntry(entry)}>
-                      <span className="topic-meta">
-                        <em>{entry.region}</em>
-                        <strong>{entry.pillar}</strong>
-                      </span>
-                      <h4>{entry.title}</h4>
-                      <p>{entry.summary}</p>
-                    </button>
-                  ))}
-                </div>
-              </section>
+                  {knowledgeEntries
+                    .filter((entry) => ["why-finance-matters", "three-statements", "cash-vs-profit"].includes(entry.id))
+                    .map((entry) => (
+                      <button key={entry.id} type="button" className="topic-card" onClick={() => openEntry(entry)}>
+                        <span className="topic-meta">
+                          <em>{entry.region}</em>
+                          <strong>{entry.pillar}</strong>
+                        </span>
+                        <h4>{entry.title}</h4>
+                        <p>{entry.summary}</p>
+                      </button>
+                    ))}
 
-              <section className="section-block card-panel">
-                <div className="section-header">
-                  <div>
-                    <p className="eyebrow">税务与票据</p>
-                    <h3>把“合理避税”和“发票怎么管”拆成两门能独立学透的专题</h3>
-                  </div>
-                </div>
-
-                <div className="topic-grid">
-                  {taxPlanningPlays.slice(0, 4).map((plan) => (
+                  {taxPlanningPlays.slice(0, 2).map((plan) => (
                     <button key={plan.id} type="button" className="topic-card" onClick={() => openPlan(plan)}>
                       <span className="topic-meta">
                         <em>{plan.region}</em>
@@ -1079,10 +1099,8 @@ function App() {
                       <p>{plan.summary}</p>
                     </button>
                   ))}
-                </div>
 
-                <div className="topic-grid topic-grid-compact">
-                  {invoiceGuides.slice(0, 4).map((guide) => (
+                  {invoiceGuides.slice(0, 3).map((guide) => (
                     <button key={guide.id} type="button" className="topic-card" onClick={() => openInvoice(guide)}>
                       <span className="topic-meta">
                         <em>{guide.region}</em>
@@ -1793,7 +1811,7 @@ function App() {
                 <div className="section-header">
                   <div>
                     <p className="eyebrow">术语表</p>
-                    <h3>把财务语言翻译成经营语言</h3>
+                    <h3>{filteredGlossary.length} 个核心术语，把财务语言翻译成经营语言</h3>
                   </div>
                 </div>
 
@@ -1801,12 +1819,40 @@ function App() {
                   {filteredGlossary.map((item) => (
                     <article key={item.term} className="glossary-card">
                       <div className="glossary-header">
-                        <h4>{item.term}</h4>
+                        <div>
+                          <h4>{item.term}</h4>
+                          {item.alias ? <small>{item.alias}</small> : null}
+                        </div>
                         <span>{item.region}</span>
                       </div>
-                      {item.alias ? <small>{item.alias}</small> : null}
-                      <p>{item.simple}</p>
-                      <strong>{item.whyItMatters}</strong>
+                      <div className="glossary-chip">{item.category}</div>
+
+                      <section className="glossary-section">
+                        <span>明确定义</span>
+                        <p>{item.definition}</p>
+                      </section>
+
+                      <section className="glossary-section">
+                        <span>大白话</span>
+                        <p>{item.plain}</p>
+                      </section>
+
+                      <section className="glossary-section">
+                        <span>相似概念辨析</span>
+                        <ul className="glossary-compare-list">
+                          {item.distinctions.map((distinction) => (
+                            <li key={distinction.label}>
+                              <strong>{distinction.label}</strong>
+                              <p>{distinction.detail}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section className="glossary-why">
+                        <span>CEO 为什么要懂</span>
+                        <strong>{item.whyItMatters}</strong>
+                      </section>
                     </article>
                   ))}
                 </div>
